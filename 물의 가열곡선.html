@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>물의 가열 곡선 시뮬레이션</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+    }
+    .main-layout {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      gap: 50px;
+      margin-top: 30px;
+    }
+    .left-panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+    .beaker-group {
+      display: flex;
+      gap: 30px;
+    }
+    #thermometer {
+      width: 30px;
+      height: 200px;
+      border: 2px solid #333;
+      position: relative;
+      background: #eee;
+    }
+    #thermo-fill {
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+      background: red;
+    }
+    #beaker {
+      width: 100px;
+      height: 150px;
+      border: 2px solid #333;
+      position: relative;
+      background: #eef;
+    }
+    .ice, .water, .steam {
+      position: absolute;
+      width: 100%;
+      left: 0;
+    }
+    .ice {
+      height: 60px;
+      bottom: 90px;
+      background: #ccf;
+    }
+    .water {
+      height: 60px;
+      bottom: 30px;
+      background: #00f;
+      opacity: 0.5;
+    }
+    .steam {
+      height: 40px;
+      top: -30px;
+      background: #ccc;
+      opacity: 0.7;
+    }
+    canvas {
+      max-width: 600px;
+    }
+  </style>
+</head>
+<body>
+  <h1>물의 가열 곡선 시뮬레이션</h1>
+  <div class="main-layout">
+    <div class="left-panel">
+      <div class="beaker-group">
+        <div id="thermometer">
+          <div id="thermo-fill" style="height: 10%;"></div>
+        </div>
+        <div id="beaker"></div>
+      </div>
+      <label>화력 조절: <input type="range" id="power" min="1" max="5" value="2" /></label>
+      <div>
+        <button onclick="startHeating()">가열하기</button>
+        <button onclick="pauseHeating()">잠시멈춤</button>
+        <button onclick="resetHeating()">다시하기</button>
+        <button onclick="clearGraph()">모두지우기</button>
+      </div>
+    </div>
+    <canvas id="tempChart"></canvas>
+  </div>
+
+  <script>
+    const ctx = document.getElementById('tempChart').getContext('2d');
+    const tempChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: '온도 (℃)',
+          data: [],
+          borderColor: 'red',
+          borderWidth: 2,
+          tension: 0.1
+        }]
+      },
+      options: {
+        scales: {
+          x: { title: { display: true, text: '시간 (초)' } },
+          y: { title: { display: true, text: '온도 (℃)' }, min: -30, max: 130 }
+        }
+      }
+    });
+
+    let time = 0;
+    let temp = -20;
+    let timer;
+    let beaker = document.getElementById('beaker');
+    let thermoFill = document.getElementById('thermo-fill');
+
+    let phase = 'ice';
+    let meltTime = 0;
+    let boilTime = 0;
+
+    function updateBeaker() {
+      beaker.innerHTML = '';
+      if (phase === 'ice') {
+        beaker.innerHTML = '<div class="ice"></div>';
+      } else if (phase === 'melting') {
+        beaker.innerHTML = '<div class="ice"></div><div class="water"></div>';
+      } else if (phase === 'water') {
+        beaker.innerHTML = '<div class="water"></div>';
+      } else if (phase === 'boiling') {
+        beaker.innerHTML = '<div class="water"></div><div class="steam"></div>';
+      } else if (phase === 'steam') {
+        beaker.innerHTML = '<div class="steam"></div>';
+      }
+    }
+
+    function updateThermometer() {
+      let percent = ((temp + 30) / 160) * 100;
+      thermoFill.style.height = Math.min(Math.max(percent, 0), 100) + '%';
+    }
+
+    function startHeating() {
+      if (timer) return;
+      timer = setInterval(() => {
+        let power = parseInt(document.getElementById('power').value);
+
+        if (temp < 0) {
+          temp += power * 0.5;
+          phase = 'ice';
+        } else if (temp >= 0 && temp < 1 && meltTime < 20) {
+          phase = 'melting';
+          meltTime++;
+        } else if (temp >= 0 && temp < 100) {
+          temp += power * 0.5;
+          phase = 'water';
+        } else if (temp >= 100 && temp < 101 && boilTime < 20) {
+          phase = 'boiling';
+          boilTime++;
+        } else {
+          temp += power * 0.5;
+          phase = 'steam';
+        }
+
+        if (temp > 130) {
+          clearInterval(timer);
+          return;
+        }
+
+        time++;
+        updateBeaker();
+        updateThermometer();
+        tempChart.data.labels.push(time);
+        tempChart.data.datasets[0].data.push(Math.round(temp * 10) / 10);
+        tempChart.update();
+      }, 1000);
+    }
+
+    function pauseHeating() {
+      clearInterval(timer);
+      timer = null;
+    }
+
+    function resetHeating() {
+      clearInterval(timer);
+      timer = null;
+      time = 0;
+      temp = -20;
+      meltTime = 0;
+      boilTime = 0;
+      phase = 'ice';
+      tempChart.data.labels = [];
+      tempChart.data.datasets[0].data = [];
+      tempChart.update();
+      updateBeaker();
+      updateThermometer();
+    }
+
+    function clearGraph() {
+      tempChart.data.labels = [];
+      tempChart.data.datasets[0].data = [];
+      tempChart.update();
+    }
+
+    updateBeaker();
+    updateThermometer();
+  </script>
+</body>
+</html>
